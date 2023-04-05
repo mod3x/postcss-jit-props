@@ -10,13 +10,14 @@
 
 `postcss-jit-props` watches for CSS variables and ensures a value entry exists in the stylesheet. [Try in browser](https://stackblitz.com/edit/jit-open-props?file=postcss.config.js)
 
-This lets you **provide a huge pool of properties** for development and design, and rather than try and purge unused variables, **only adds what was used**. 
+This lets you **provide a huge pool of properties** for development and design, and rather than try and purge unused variables, **only adds what was used**.
 
 <br>
 
 ## Example
 
-CSS Before / During Development:  
+CSS Before / During Development:
+
 ```css
 .foo {
   color: var(--brand-1);
@@ -32,7 +33,8 @@ CSS Before / During Development:
 }
 ```
 
-CSS After / Result of Plugin:  
+CSS After / Result of Plugin:
+
 ```diff
 + @custom-media --dark (prefers-color-scheme: dark);
 
@@ -76,6 +78,7 @@ npm install --save-dev postcss-jit-props
 **Step 2:** Add the plugin to plugins in `postcss.config.js` and **pass it your props (CSS || JS || JSON)**.
 
 Pass JS objects:
+
 ```js
 module.exports = {
   plugins: [
@@ -90,18 +93,18 @@ module.exports = {
       '--text-@media:dark': 'black',
     }),
     require('autoprefixer'),
-  ]
+  ],
 }
 ```
 
-or pass CSS files 
+or pass CSS files
 
 ```js
 module.exports = {
   plugins: [
-    require('postcss-jit-props')({files: ['./props.css']}),
+    require('postcss-jit-props')({ files: ['./props.css'] }),
     require('autoprefixer'),
-  ]
+  ],
 }
 ```
 
@@ -109,30 +112,30 @@ or JSON ✨
 
 > Javascript and JSON must use the `-@` suffix on their custom property name in order for jit-props to find associated `@keyframes`
 
-Configure where the selector the props are pushed to. Some CSS Module environments, for example, don't want the props in `:root`, so we can configure the plugin to push them where it's acceptable for the environment, like `:global`: 
+Configure where the selector the props are pushed to. Some CSS Module environments, for example, don't want the props in `:root`, so we can configure the plugin to push them where it's acceptable for the environment, like `:global`:
 
 ```js
 module.exports = {
   plugins: [
     require('postcss-jit-props')({
       ...MyProps,
-      custom_selector: ':global'
+      custom_selector: ':global',
     }),
     require('autoprefixer'),
-  ]
+  ],
 }
 ```
 
-Configure the `@layer` the props are pushed to. : 
+Configure the `@layer` the props are pushed to. :
 
 ```js
 module.exports = {
   plugins: [
     require('postcss-jit-props')({
       ...MyProps,
-      layer: 'design.system'
+      layer: 'design.system',
     }),
     require('autoprefixer'),
-  ]
+  ],
 }
 ```
