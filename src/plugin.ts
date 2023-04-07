@@ -29,6 +29,9 @@ type PluginProvidedProps = Record<string, string>
 
 type PluginOptions = PluginOwnOptions & PluginProvidedProps
 
+// TODO: proper typings
+type PluginState = any
+
 const DEFAULT_ADAPTIVE_PROP_SELECTOR = '-@media:dark'
 
 const processed = new WeakSet()
@@ -56,7 +59,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
     prepare() {
       const UserProps = { ...props }
 
-      const STATE = {
+      const STATE: PluginState = {
         mapped: null, // track prepended props
         mapped_dark: null, // track dark mode prepended props
 
@@ -96,7 +99,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
                 parent: node.source?.input?.file,
               })
 
-              let data = readFileSync(file, 'utf8')
+              const data = readFileSync(file, 'utf8')
 
               const hashSum = createHash('sha256')
               hashSum.update(file)
@@ -115,7 +118,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
               const fileProps = new Map()
               FilePropsCache.set(fileCacheKey, fileProps)
 
-              let dependencyResult = parse(data, { from: file })
+              const dependencyResult = parse(data, { from: file })
 
               dependencyResult.walkDecls((decl) => {
                 if (!decl.variable) return
@@ -125,12 +128,16 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
 
               dependencyResult.walkAtRules((atrule) => {
                 if (atrule.name === 'custom-media') {
-                  let media = atrule.params.slice(0, atrule.params.indexOf(' '))
+                  const media = atrule.params.slice(
+                    0,
+                    atrule.params.indexOf(' '),
+                  )
+
                   UserProps[media] = `@custom-media ${atrule.params};`
                   fileProps.set(media, `@custom-media ${atrule.params};`)
                 } else if (atrule.name === 'keyframes') {
-                  let keyframeName = `--${atrule.params}-@`
-                  let keyframes = atrule.source.input.css.slice(
+                  const keyframeName = `--${atrule.params}-@`
+                  const keyframes = atrule.source.input.css.slice(
                     atrule.source.start.offset,
                     atrule.source.end.offset + 1,
                   )
@@ -175,7 +182,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             if (processed.has(atrule)) return
 
             // extract prop from atrule params
-            let prop = atrule.params.replace(/[( )]+/g, '')
+            const prop = atrule.params.replace(/[( )]+/g, '')
 
             // bail if media prop already prepended
             if (STATE.mapped.has(prop)) return
@@ -185,7 +192,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
               STATE.target_ss.prepend(STATE.target_rule)
 
             // lookup prop value from pool
-            let value = UserProps[prop] || null
+            const value = UserProps[prop] ?? null
 
             // warn if media prop not resolved
             if (!value) {
@@ -206,8 +213,8 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
         Declaration(node, { Declaration, parse }) {
           // bail early
           if (processed.has(node) || !node.value) return
-          // console.log(node)
-          let matches = node.value.match(/var\(\s*(--[\w\d-_]+)/g)
+
+          const matches = node.value.match(/var\(\s*(--[\w\d-_]+)/g)
 
           if (!matches) return
 
@@ -215,14 +222,14 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
           if (STATE.mapped.size === 0)
             STATE.target_ss.prepend(STATE.target_rule)
 
-          let props = matches.map((v) => v.replace('var(', '').trim())
+          const props = matches.map((v) => v.replace('var(', '').trim())
 
-          for (let prop of props) {
+          for (const prop of props) {
             // bail prepending this prop if it's already been done
             if (STATE.mapped.has(prop)) continue
 
             // lookup prop from options object
-            let value = UserProps[prop] || null
+            const value = UserProps[prop] ?? null
 
             // warn if props won't resolve from plugin
             if (!value) {
@@ -230,12 +237,12 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             }
 
             // create and append prop to :root
-            let decl = new Declaration({ prop, value, source: node.source })
+            const decl = new Declaration({ prop, value, source: node.source })
             STATE.target_rule.append(decl)
             STATE.mapped.add(prop)
 
             // lookup keyframes for the prop and append if found
-            let keyframes = UserProps[`${prop}-@`]
+            const keyframes = UserProps[`${prop}-@`]
             if (keyframes) {
               const keyframesNode = parse(keyframes).first
               keyframesNode.source = node.source
@@ -244,7 +251,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             }
 
             // lookup dark adaptive prop and append if found
-            let adaptive = UserProps[adaptivePropSelector(prop)]
+            const adaptive = UserProps[adaptivePropSelector(prop)]
             if (adaptive && !STATE.mapped_dark.has(prop)) {
               // create @media ... { :root {} } context just in time
               if (STATE.mapped_dark.size === 0) {
