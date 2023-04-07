@@ -121,25 +121,28 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
               const dependencyResult = parse(data, { from: file })
 
               dependencyResult.walkDecls((decl) => {
-                if (!decl.variable) return
+                if (!decl.variable) {
+                  return
+                }
+
                 UserProps[decl.prop] = decl.value
                 fileProps.set(decl.prop, decl.value)
               })
 
-              dependencyResult.walkAtRules((atrule) => {
-                if (atrule.name === 'custom-media') {
-                  const media = atrule.params.slice(
+              dependencyResult.walkAtRules((atRule) => {
+                if (atRule.name === 'custom-media') {
+                  const media = atRule.params.slice(
                     0,
-                    atrule.params.indexOf(' '),
+                    atRule.params.indexOf(' '),
                   )
 
-                  UserProps[media] = `@custom-media ${atrule.params};`
-                  fileProps.set(media, `@custom-media ${atrule.params};`)
-                } else if (atrule.name === 'keyframes') {
-                  const keyframeName = `--${atrule.params}-@`
-                  const keyframes = atrule.source.input.css.slice(
-                    atrule.source.start.offset,
-                    atrule.source.end.offset + 1,
+                  UserProps[media] = `@custom-media ${atRule.params};`
+                  fileProps.set(media, `@custom-media ${atRule.params};`)
+                } else if (atRule.name === 'keyframes') {
+                  const keyframeName = `--${atRule.params}-@`
+                  const keyframes = atRule.source.input.css.slice(
+                    atRule.source.start.offset,
+                    atRule.source.end.offset + 1,
                   )
                   UserProps[keyframeName] = keyframes
                   fileProps.set(keyframeName, keyframes)
@@ -173,23 +176,30 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             })
             node.root().prepend(STATE.target_layer)
             STATE.target_ss = STATE.target_layer
-          } else STATE.target_ss = node.root()
+          } else {
+            STATE.target_ss = node.root()
+          }
         },
 
         AtRule: {
-          media: (atrule, { parse }) => {
+          media: (atRule, { parse }) => {
             // bail early if possible
-            if (processed.has(atrule)) return
+            if (processed.has(atRule)) {
+              return
+            }
 
-            // extract prop from atrule params
-            const prop = atrule.params.replace(/[( )]+/g, '')
+            // extract prop from atRule params
+            const prop = atRule.params.replace(/[( )]+/g, '')
 
             // bail if media prop already prepended
-            if (STATE.mapped.has(prop)) return
+            if (STATE.mapped.has(prop)) {
+              return
+            }
 
             // create :root {} context just in time
-            if (STATE.mapped.size === 0)
+            if (STATE.mapped.size === 0) {
               STATE.target_ss.prepend(STATE.target_rule)
+            }
 
             // lookup prop value from pool
             const value = UserProps[prop] ?? null
@@ -201,32 +211,39 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
 
             // prepend the custom media
             const customMedia = parse(value).first
-            customMedia.source = atrule.source
+            customMedia.source = atRule.source
             STATE.target_ss.prepend(customMedia)
 
             // track work to prevent duplication
-            processed.add(atrule)
+            processed.add(atRule)
             STATE.mapped.add(prop)
           },
         },
 
         Declaration(node, { Declaration, parse }) {
           // bail early
-          if (processed.has(node) || !node.value) return
+          if (processed.has(node) || !node.value) {
+            return
+          }
 
           const matches = node.value.match(/var\(\s*(--[\w\d-_]+)/g)
 
-          if (!matches) return
+          if (!matches) {
+            return
+          }
 
           // create :root {} context just in time
-          if (STATE.mapped.size === 0)
+          if (STATE.mapped.size === 0) {
             STATE.target_ss.prepend(STATE.target_rule)
+          }
 
           const props = matches.map((v) => v.replace('var(', '').trim())
 
           for (const prop of props) {
             // bail prepending this prop if it's already been done
-            if (STATE.mapped.has(prop)) continue
+            if (STATE.mapped.has(prop)) {
+              continue
+            }
 
             // lookup prop from options object
             const value = UserProps[prop] ?? null
@@ -266,12 +283,12 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
                 STATE.target_media_dark.append(adaptiveNode)
               } else {
                 // append adaptive prop definition to dark media query
-                let darkdecl = new Declaration({
+                const darkDecl = new Declaration({
                   prop,
                   value: adaptive,
                   source: node.source,
                 })
-                STATE.target_rule_dark.append(darkdecl)
+                STATE.target_rule_dark.append(darkDecl)
                 STATE.mapped_dark.add(prop)
               }
             }
