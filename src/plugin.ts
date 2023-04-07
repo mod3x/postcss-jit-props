@@ -11,12 +11,14 @@
  * limitations under the License.
  */
 
-import type { PluginCreator } from 'postcss'
+import type { PluginCreator, Root, Rule, AtRule } from 'postcss'
 
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
 import glob from 'tiny-glob/sync'
+
+type Nullable<T> = { [K in keyof T]: T[K] | null }
 
 type PluginOwnOptions = {
   files: string[]
@@ -29,8 +31,16 @@ type PluginProvidedProps = Record<string, string>
 
 type PluginOptions = PluginOwnOptions & PluginProvidedProps
 
-// TODO: proper typings
-type PluginState = any
+type PluginState = {
+  mapped: Set<string>
+  mapped_dark: Set<string>
+
+  target_layer: AtRule
+  target_rule: Rule
+  target_rule_dark: Rule
+  target_ss: AtRule | Root
+  target_media_dark: AtRule
+}
 
 const DEFAULT_ADAPTIVE_PROP_SELECTOR = '-@media:dark'
 
@@ -59,7 +69,7 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
     prepare() {
       const UserProps = { ...props }
 
-      const STATE: PluginState = {
+      const STATE: Nullable<PluginState> = {
         mapped: null, // track prepended props
         mapped_dark: null, // track dark mode prepended props
 
