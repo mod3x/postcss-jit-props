@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "postcss-jit-props",
   "version": "1.0.13",
   "description": "PostCSS plugin to insert variables from a data source based on discovered usage",
@@ -13,14 +14,14 @@
   "author": "Adam Argyle <argyle@google.com>",
   "repository": "github:GoogleChromeLabs/postcss-jit-props",
   "bugs": "https://github.com/GoogleChromeLabs/postcss-jit-props/issues",
-  "type": "module",
   "scripts": {
+    "start": "",
     "eslint": "eslint src --ext .cts,.mts,.ts",
-    "lint": "pnpm run eslint",
-    "lint:fix": "pnpm run eslint --fix",
+    "lint": "npm run eslint",
+    "lint:fix": "npm run eslint --fix",
     "prettier": "prettier .",
-    "format:check": "pnpm run prettier --check",
-    "format:write": "pnpm run prettier --write"
+    "format:check": "npm run prettier -- --check",
+    "format:write": "npm run prettier -- --write"
   },
   "engines": {
     "node": ">=16"
