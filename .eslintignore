@@ -1,4 +1,4 @@
 dist/
 node_modules/
-.eslintrc.cjs
-.prettierrc.cjs
+.eslintrc.js
+.prettierrc.js

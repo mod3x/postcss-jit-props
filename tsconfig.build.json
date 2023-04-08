@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    /* Emit */
+    "declaration": true,
+    "sourceMap": true,
+    "outDir": "./dist/",
+    "removeComments": true,
+    "newLine": "lf"
+  },
+  "exclude": ["**/*.test.ts"]
+}

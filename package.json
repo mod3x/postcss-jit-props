@@ -1,5 +1,4 @@
 {
-  "type": "module",
   "name": "postcss-jit-props",
   "version": "1.0.13",
   "description": "PostCSS plugin to insert variables from a data source based on discovered usage",
@@ -16,6 +15,8 @@
   "bugs": "https://github.com/GoogleChromeLabs/postcss-jit-props/issues",
   "scripts": {
     "start": "",
+    "build": "tsc --project ./tsconfig.build.json",
+    "test": "",
     "eslint": "eslint src --ext .cts,.mts,.ts",
     "lint": "npm run eslint",
     "lint:fix": "npm run eslint --fix",

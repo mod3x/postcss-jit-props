@@ -11,14 +11,12 @@
  * limitations under the License.
  */
 
-import type { PluginCreator, Root, Rule, AtRule } from 'postcss'
+import { type PluginCreator, Rule, AtRule } from 'postcss'
 
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 
 import glob from 'tiny-glob/sync'
-
-type Nullable<T> = { [K in keyof T]: T[K] | null }
 
 type PluginOwnOptions = {
   files: string[]
@@ -31,19 +29,6 @@ type PluginProvidedProps = Record<string, string>
 
 type PluginOptions = PluginOwnOptions & PluginProvidedProps
 
-type PluginState = {
-  mapped: Set<string>
-  mapped_dark: Set<string>
-
-  target_layer: AtRule
-  target_rule: Rule
-  target_rule_dark: Rule
-  target_ss: AtRule | Root
-  target_media_dark: AtRule
-}
-
-const DEFAULT_ADAPTIVE_PROP_SELECTOR = '-@media:dark'
-
 const processed = new WeakSet()
 
 const getAdaptivePropSelector = (
@@ -51,7 +36,7 @@ const getAdaptivePropSelector = (
 ) => {
   return (prop: string) => {
     if (typeof selector === 'undefined') {
-      return `${prop}${DEFAULT_ADAPTIVE_PROP_SELECTOR}`
+      return `${prop}-@media:dark`
     }
 
     return `${prop}${selector}`
@@ -66,27 +51,51 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
 
   return {
     postcssPlugin: 'postcss-jit-props',
-    prepare() {
+    prepare({ root }) {
       const UserProps = { ...props }
-
-      const STATE: Nullable<PluginState> = {
-        mapped: null, // track prepended props
-        mapped_dark: null, // track dark mode prepended props
-
-        target_layer: null, // layer for props
-        target_rule: null, // :root for props
-        target_rule_dark: null, // :root for dark props
-        target_ss: null, // stylesheet for keyframes/MQs
-        target_media_dark: null, // dark media query props
-      }
 
       const targetSelector = custom_selector ?? ':root'
       const adaptivePropSelector = getAdaptivePropSelector(
         adaptive_prop_selector,
       )
 
+      // track prepended props
+      const mapped = new Set<string>()
+
+      // track dark mode prepended props
+      const mapped_dark = new Set<string>()
+
+      // layer for props
+      const target_layer = new AtRule({
+        name: 'layer',
+        params: layer,
+        source: root.source,
+      })
+
+      // :root for props
+      const target_rule = new Rule({
+        selector: targetSelector,
+        source: root.source,
+      })
+
+      // :root for dark props
+      const target_rule_dark = new Rule({
+        selector: targetSelector,
+        source: root.source,
+      })
+
+      // stylesheet for keyframes/MQs
+      const target_ss = layer ? target_layer : root
+
+      // dark media query props
+      const target_media_dark = new AtRule({
+        name: 'media',
+        params: '(prefers-color-scheme: dark)',
+        source: root.source,
+      })
+
       return {
-        Once(node, { parse, result, Rule, AtRule }) {
+        Once(node, { parse, root, result }) {
           if (!files && !Object.keys(props).length) {
             return console.warn(
               'postcss-jit-props: Variable source(s) not passed.',
@@ -150,44 +159,22 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
                   fileProps.set(media, `@custom-media ${atRule.params};`)
                 } else if (atRule.name === 'keyframes') {
                   const keyframeName = `--${atRule.params}-@`
-                  const keyframes = atRule.source.input.css.slice(
-                    atRule.source.start.offset,
-                    atRule.source.end.offset + 1,
+                  const keyframes = atRule.source?.input.css.slice(
+                    atRule.source?.start?.offset,
+                    (atRule.source?.end?.offset ?? 0) + 1,
                   )
-                  UserProps[keyframeName] = keyframes
-                  fileProps.set(keyframeName, keyframes)
+
+                  if (keyframeName && keyframes) {
+                    UserProps[keyframeName] = keyframes
+                    fileProps.set(keyframeName, keyframes)
+                  }
                 }
               })
             })
           }
 
-          STATE.mapped = new Set()
-          STATE.mapped_dark = new Set()
-
-          STATE.target_rule = new Rule({
-            selector: targetSelector,
-            source: node.first.source,
-          })
-          STATE.target_rule_dark = new Rule({
-            selector: targetSelector,
-            source: node.first.source,
-          })
-          STATE.target_media_dark = new AtRule({
-            name: 'media',
-            params: '(prefers-color-scheme: dark)',
-            source: node.first.source,
-          })
-
           if (layer) {
-            STATE.target_layer = new AtRule({
-              name: 'layer',
-              params: layer,
-              source: node.first.source,
-            })
-            node.root().prepend(STATE.target_layer)
-            STATE.target_ss = STATE.target_layer
-          } else {
-            STATE.target_ss = node.root()
+            root().prepend(target_layer)
           }
         },
 
@@ -202,13 +189,13 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             const prop = atRule.params.replace(/[( )]+/g, '')
 
             // bail if media prop already prepended
-            if (STATE.mapped.has(prop)) {
+            if (mapped.has(prop)) {
               return
             }
 
             // create :root {} context just in time
-            if (STATE.mapped.size === 0) {
-              STATE.target_ss.prepend(STATE.target_rule)
+            if (mapped.size === 0) {
+              target_ss.prepend(target_rule)
             }
 
             // lookup prop value from pool
@@ -221,12 +208,15 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
 
             // prepend the custom media
             const customMedia = parse(value).first
-            customMedia.source = atRule.source
-            STATE.target_ss.prepend(customMedia)
+
+            if (customMedia) {
+              customMedia.source = atRule.source
+              target_ss.prepend(customMedia)
+            }
 
             // track work to prevent duplication
             processed.add(atRule)
-            STATE.mapped.add(prop)
+            mapped.add(prop)
           },
         },
 
@@ -243,15 +233,15 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
           }
 
           // create :root {} context just in time
-          if (STATE.mapped.size === 0) {
-            STATE.target_ss.prepend(STATE.target_rule)
+          if (mapped.size === 0) {
+            target_ss.prepend(target_rule)
           }
 
           const props = matches.map((v) => v.replace('var(', '').trim())
 
           for (const prop of props) {
             // bail prepending this prop if it's already been done
-            if (STATE.mapped.has(prop)) {
+            if (mapped.has(prop)) {
               continue
             }
 
@@ -264,42 +254,46 @@ const plugin: PluginCreator<PluginOptions> = (options) => {
             }
 
             // create and append prop to :root
-            const decl = new Declaration({ prop, value, source: node.source })
-            STATE.target_rule.append(decl)
-            STATE.mapped.add(prop)
+            const decl = new Declaration({ prop, value })
+            decl.source = node.source
+
+            target_rule.append(decl)
+            mapped.add(prop)
 
             // lookup keyframes for the prop and append if found
             const keyframes = UserProps[`${prop}-@`]
             if (keyframes) {
               const keyframesNode = parse(keyframes).first
-              keyframesNode.source = node.source
-              keyframesNode.walk((x) => (x.source = node.source))
-              STATE.target_ss.append(keyframesNode)
+
+              if (keyframesNode) {
+                keyframesNode.source = node.source
+                target_ss.append(keyframesNode)
+              }
             }
 
             // lookup dark adaptive prop and append if found
             const adaptive = UserProps[adaptivePropSelector(prop)]
-            if (adaptive && !STATE.mapped_dark.has(prop)) {
+            if (adaptive && !mapped_dark.has(prop)) {
               // create @media ... { :root {} } context just in time
-              if (STATE.mapped_dark.size === 0) {
-                STATE.target_media_dark.append(STATE.target_rule_dark)
-                STATE.target_ss.append(STATE.target_media_dark)
+              if (mapped_dark.size === 0) {
+                target_media_dark.append(target_rule_dark)
+                target_ss.append(target_media_dark)
               }
 
               if (adaptive.includes('@keyframes')) {
                 const adaptiveNode = parse(adaptive).first
-                adaptiveNode.source = node.source
-                adaptiveNode.walk((x) => (x.source = node.source))
-                STATE.target_media_dark.append(adaptiveNode)
+
+                if (adaptiveNode) {
+                  adaptiveNode.source = node.source
+                  target_media_dark.append(adaptiveNode)
+                }
               } else {
                 // append adaptive prop definition to dark media query
-                const darkDecl = new Declaration({
-                  prop,
-                  value: adaptive,
-                  source: node.source,
-                })
-                STATE.target_rule_dark.append(darkDecl)
-                STATE.mapped_dark.add(prop)
+                const darkDecl = new Declaration({ prop, value: adaptive })
+                darkDecl.source = node.source
+
+                target_rule_dark.append(darkDecl)
+                mapped_dark.add(prop)
               }
             }
 
